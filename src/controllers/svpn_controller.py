@@ -128,12 +128,12 @@ def main():
     parser.add_argument("password")
     parser.add_argument("host")
     parser.add_argument("-c", help="load configuration from a file",
-                        metavar="config_file")
+                        dest="config_file", metavar="config_file")
     args = parser.parse_args()
 
-    if args.config:
+    if args.config_file:
         # Load the config file
-        with open(args.config) as f:
+        with open(args.config_file) as f:
             loaded_config = json.load(f)
         CONFIG.update(loaded_config)
 
