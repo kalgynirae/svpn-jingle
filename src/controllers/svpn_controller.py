@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import socket, select, json, time, sys, hashlib, binascii, os
+import socket, select, json, time, sys, hashlib, binascii, os, argparse
 
 # Set default config values
 CONFIG = {
@@ -123,9 +123,19 @@ class UdpServer:
                                            cas, ip4)
 
 def main():
-    if len(sys.argv) < 4:
-        print "usage: %s username password host" % (sys.argv[0],)
-        return
+    parser = argparse.ArgumentParser()
+    parser.add_argument("username")
+    parser.add_argument("password")
+    parser.add_argument("host")
+    parser.add_argument("-c", help="load configuration from a file",
+                        metavar="config_file")
+    args = parser.parse_args()
+
+    if args.config:
+        # Load the config file
+        with open(args.config) as f:
+            loaded_config = json.load(f)
+        CONFIG.update(loaded_config)
 
     count = 0
     server = UdpServer(args.username, args.password, args.host, CONFIG['ip4'])
