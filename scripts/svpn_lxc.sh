@@ -1,44 +1,53 @@
 #!/bin/sh
 # this script uses lxc to run multiple instances of SocialVPN
 # this script is designed for Ubuntu 12.04 (64-bit)
-#
-# usage: svpn_lxc.sh username password host 1 10 30 svpn"
+
+if [ $# -lt 3 ]
+then
+    echo "Usage: $0 username password host [start end wait mode git_repo git_branch]"
+    exit 1
+fi
 
 USERNAME=$1
 PASSWORD=$2
 XMPP_HOST=$3
-CONTAINER_START=$4
-CONTAINER_END=$5
-WAIT_TIME=$6
-MODE=$7
+CONTAINER_START=${4:-1}
+CONTAINER_END=${5:-5}
+WAIT_TIME=${6:-30}
+MODE=${7:-svpn}
+SVPN_GIT_REPO=${8:-https://github.com/socialvpn/svpn-jingle.git}
+SVPN_GIT_BRANCH=${9:-master}
 HOST=$(hostname)
 IP_PREFIX="172.16.5"
 CONTROLLER=gvpn_controller.py
 START_PATH=container/rootfs/home/ubuntu/start.sh
 
 sudo apt-get update
-sudo apt-get install -y lxc tcpdump
+sudo apt-get install -y lxc tcpdump git
 
 wget -O ubuntu.tgz http://goo.gl/Ze7hYz
 wget -O container.tgz http://goo.gl/XJgdtf
 wget -O svpn.tgz http://goo.gl/Sg4Vh2
+git clone --depth 1 --branch "$SVPN_GIT_BRANCH" "$SVPN_GIT_REPO" svpn-git
 
 sudo tar xzf ubuntu.tgz; tar xzf container.tgz; tar xzf svpn.tgz
 sudo cp -a ubuntu/* container/rootfs/
 sudo mv container/home/ubuntu container/rootfs/home/ubuntu/
 mv svpn container/rootfs/home/ubuntu/svpn/
+sudo cp svpn-git/src/controllers/*.py container/rootfs/home/ubuntu/svpn/
 
 STUN="stun.l.google.com:19302"
 TURN=""
 TURN_USER=""
 TURN_PASS=""
-for i in `ls container/rootfs/home/ubuntu/svpn/*.py`
-do
-    sed -i "s/STUN = .*/STUN = \"$STUN\"/g" $i
-    sed -i "s/TURN = .*/TURN = \"$TURN\"/g" $i
-    sed -i "s/TURN_USER = .*/TURN_USER = \"$TURN_USER\"/g" $i
-    sed -i "s/TURN_PASS = .*/TURN_PASS = \"$TURN_PASS\"/g" $i
-done
+cat > container/rootfs/home/ubuntu/svpn/config.json << EOF
+{
+    "stun": "$STUN",
+    "turn": "$TURN",
+    "turn_user": "$TURN_USER",
+    "turn_pass": "$TURN_PASS",
+}
+EOF
 
 if [ "x$MODE" = "xsvpn" ]
 then
@@ -50,7 +59,8 @@ cat > $START_PATH << EOF
 SVPN_HOME=/home/ubuntu/svpn
 CONFIG=\`cat \$SVPN_HOME/config\`
 \$SVPN_HOME/svpn-jingle &> \$SVPN_HOME/svpn_log.txt &
-python \$SVPN_HOME/$CONTROLLER \$CONFIG &> \$SVPN_HOME/controller_log.txt &
+python \$SVPN_HOME/$CONTROLLER -c \$SVPN_HOME/config.json \
+    \$CONFIG &> \$SVPN_HOME/controller_log.txt &
 EOF
 
 chmod 755 $START_PATH
